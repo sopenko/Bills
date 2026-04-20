@@ -20,7 +20,7 @@ const SOURCE_COLORS = {
   plaid: 'bg-green-100 text-green-700',
 }
 
-export function BillsList({ bills, onMarkPaid, onEdit, onDelete }) {
+export function BillsList({ bills, onMarkPaid, onEdit, onDelete, title = 'All Bills' }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [paidFilter, setPaidFilter] = useState('all')
@@ -91,7 +91,7 @@ export function BillsList({ bills, onMarkPaid, onEdit, onDelete }) {
     <div className="bg-white rounded-lg border border-gray-200">
       <div className="p-4 border-b border-gray-200">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">All Bills</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
           <div className="relative">
             <svg
               className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"

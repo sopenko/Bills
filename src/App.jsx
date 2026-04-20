@@ -225,10 +225,10 @@ function AppContent() {
       {/* Tab Navigation */}
       <nav className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-8">
+          <div className="flex gap-4 sm:gap-8 overflow-x-auto">
             <button
               onClick={() => setActiveTab('dashboard')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
                 activeTab === 'dashboard'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -237,28 +237,38 @@ function AppContent() {
               Dashboard
             </button>
             <button
-              onClick={() => setActiveTab('bills')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === 'bills'
+              onClick={() => setActiveTab('transactions')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+                activeTab === 'transactions'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              All Bills
+              Bank Transactions
+            </button>
+            <button
+              onClick={() => setActiveTab('utilities')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+                activeTab === 'utilities'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Utilities
             </button>
             <button
               onClick={() => setActiveTab('monthly')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
                 activeTab === 'monthly'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              Monthly Overview
+              Monthly
             </button>
             <button
               onClick={() => setActiveTab('analytics')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
                 activeTab === 'analytics'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -268,7 +278,7 @@ function AppContent() {
             </button>
             <button
               onClick={() => setActiveTab('imports')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
                 activeTab === 'imports'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -289,12 +299,23 @@ function AppContent() {
           </div>
         )}
 
-        {activeTab === 'bills' && (
+        {activeTab === 'transactions' && (
           <BillsList
-            bills={bills}
+            bills={bills.filter(b => b.source === 'bank_statement' || b.source === 'plaid' || b.source === 'credit_card')}
             onMarkPaid={handleMarkPaid}
             onEdit={handleEditBill}
             onDelete={handleDeleteBill}
+            title="Bank Transactions"
+          />
+        )}
+
+        {activeTab === 'utilities' && (
+          <BillsList
+            bills={bills.filter(b => b.category === 'utilities' || b.source === 'invoice')}
+            onMarkPaid={handleMarkPaid}
+            onEdit={handleEditBill}
+            onDelete={handleDeleteBill}
+            title="Utility Bills"
           />
         )}
 
