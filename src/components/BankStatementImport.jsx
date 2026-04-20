@@ -2,6 +2,7 @@ import { useState, useRef, useMemo } from 'react'
 import { format, parseISO } from 'date-fns'
 import toast from 'react-hot-toast'
 import { findDuplicates } from '../utils/duplicateDetection'
+import { uploadPdfFromBase64 } from '../utils/storage'
 
 const CATEGORY_COLORS = {
   housing: 'bg-blue-100 text-blue-800',
@@ -12,12 +13,13 @@ const CATEGORY_COLORS = {
   other: 'bg-gray-100 text-gray-800',
 }
 
-export function BankStatementImport({ isOpen, onClose, onImportBills, existingBills = [] }) {
+export function BankStatementImport({ isOpen, onClose, onImportBills, existingBills = [], userId }) {
   const [isLoading, setIsLoading] = useState(false)
   const [transactions, setTransactions] = useState([])
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [statementInfo, setStatementInfo] = useState(null)
   const [fileName, setFileName] = useState('')
+  const [pdfBase64, setPdfBase64] = useState(null)
   const [step, setStep] = useState('upload') // 'upload' | 'select'
   const [showDuplicates, setShowDuplicates] = useState(true)
   const fileInputRef = useRef(null)
@@ -70,6 +72,9 @@ export function BankStatementImport({ isOpen, onClose, onImportBills, existingBi
         reader.onerror = reject
         reader.readAsDataURL(file)
       })
+
+      // Store base64 for later upload
+      setPdfBase64(base64)
 
       // Send to API
       const response = await fetch('/api/parse-statement', {
@@ -138,7 +143,26 @@ export function BankStatementImport({ isOpen, onClose, onImportBills, existingBi
     }
   }
 
-  const handleImport = () => {
+  const handleImport = async () => {
+    if (selectedIds.size === 0) {
+      toast.error('Please select at least one transaction')
+      return
+    }
+
+    setIsLoading(true)
+    let pdfPath = null
+
+    // Upload PDF if we have base64 data and userId
+    if (pdfBase64 && userId) {
+      try {
+        pdfPath = await uploadPdfFromBase64(pdfBase64, fileName, userId)
+        toast.success('PDF saved to storage')
+      } catch (error) {
+        console.error('Failed to upload PDF:', error)
+        // Continue without PDF - don't block import
+      }
+    }
+
     const selectedTransactions = transactions
       .filter((t) => selectedIds.has(t.id))
       .map((t) => ({
@@ -150,14 +174,11 @@ export function BankStatementImport({ isOpen, onClose, onImportBills, existingBi
         paid: true,
         source: 'bank_statement',
         source_document: fileName,
+        pdf_path: pdfPath,
         notes: t.description,
       }))
 
-    if (selectedTransactions.length === 0) {
-      toast.error('Please select at least one transaction')
-      return
-    }
-
+    setIsLoading(false)
     onImportBills(selectedTransactions)
     handleClose()
   }
@@ -167,6 +188,7 @@ export function BankStatementImport({ isOpen, onClose, onImportBills, existingBi
     setTransactions([])
     setSelectedIds(new Set())
     setFileName('')
+    setPdfBase64(null)
     setStatementInfo(null)
     onClose()
   }

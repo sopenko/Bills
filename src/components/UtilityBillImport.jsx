@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
+import { uploadPdfFromBase64 } from '../utils/storage'
 
 const PROVIDER_ICONS = {
   electric: '⚡',
@@ -13,18 +14,20 @@ const PROVIDER_ICONS = {
   other: '📄',
 }
 
-export function UtilityBillImport({ isOpen, onClose, onImportBill }) {
+export function UtilityBillImport({ isOpen, onClose, onImportBill, userId }) {
   const [activeTab, setActiveTab] = useState('pdf')
   const [isLoading, setIsLoading] = useState(false)
   const [emailContent, setEmailContent] = useState('')
   const [extractedBill, setExtractedBill] = useState(null)
   const [fileName, setFileName] = useState('')
+  const [pdfBase64, setPdfBase64] = useState(null)
   const fileInputRef = useRef(null)
 
   const resetState = () => {
     setExtractedBill(null)
     setEmailContent('')
     setFileName('')
+    setPdfBase64(null)
     setIsLoading(false)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
@@ -59,6 +62,9 @@ export function UtilityBillImport({ isOpen, onClose, onImportBill }) {
         reader.onerror = reject
         reader.readAsDataURL(file)
       })
+
+      // Store base64 for later upload
+      setPdfBase64(base64)
 
       const response = await fetch('/api/parse-utility-bill', {
         method: 'POST',
@@ -111,8 +117,22 @@ export function UtilityBillImport({ isOpen, onClose, onImportBill }) {
     }
   }
 
-  const handleConfirmImport = () => {
+  const handleConfirmImport = async () => {
     if (!extractedBill) return
+
+    setIsLoading(true)
+    let pdfPath = null
+
+    // Upload PDF if we have base64 data and userId
+    if (pdfBase64 && userId) {
+      try {
+        pdfPath = await uploadPdfFromBase64(pdfBase64, fileName, userId)
+        toast.success('PDF saved to storage')
+      } catch (error) {
+        console.error('Failed to upload PDF:', error)
+        // Continue without PDF - don't block import
+      }
+    }
 
     // Build notes with service address and account info
     const noteParts = []
@@ -131,8 +151,11 @@ export function UtilityBillImport({ isOpen, onClose, onImportBill }) {
       notes: noteParts.join(' | ') || '',
       source: 'invoice',
       source_document: extractedBill.source_document,
+      pdf_path: pdfPath,
+      service_address: extractedBill.service_address || null,
     }
 
+    setIsLoading(false)
     onImportBill(billData)
     toast.success('Utility bill imported!')
     handleClose()

@@ -342,6 +342,7 @@ function AppContent() {
         onClose={() => setIsStatementImportOpen(false)}
         onImportBills={handleStatementImport}
         existingBills={bills}
+        userId={user?.id}
       />
 
       {/* Plaid Bank Transactions Modal */}
@@ -358,6 +359,7 @@ function AppContent() {
         isOpen={isUtilityImportOpen}
         onClose={() => setIsUtilityImportOpen(false)}
         onImportBill={handleUtilityBillImport}
+        userId={user?.id}
       />
     </div>
   )
