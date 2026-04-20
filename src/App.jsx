@@ -316,6 +316,7 @@ function AppContent() {
             onMarkPaid={handleMarkPaid}
             onEdit={handleEditBill}
             onDelete={handleDeleteBill}
+            onUpdate={updateBill}
           />
         )}
 

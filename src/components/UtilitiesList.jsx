@@ -1,24 +1,25 @@
 import { useState, useMemo } from 'react'
-import { isBefore, parseISO, format, startOfMonth } from 'date-fns'
+import { isBefore, parseISO, format } from 'date-fns'
 
-const CATEGORIES = ['all', 'housing', 'utilities', 'subscriptions', 'insurance', 'loan', 'other']
-
-export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
+export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete, onUpdate }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [paidFilter, setPaidFilter] = useState('all')
   const [sortBy, setSortBy] = useState('due_date')
   const [sortOrder, setSortOrder] = useState('desc')
   const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false)
+  const [showMissingAddress, setShowMissingAddress] = useState(false)
+  const [editingAddressId, setEditingAddressId] = useState(null)
+  const [editingAddressValue, setEditingAddressValue] = useState('')
 
   // Detect potential duplicates (same provider name in same month)
   const duplicateInfo = useMemo(() => {
     const monthlyBills = new Map()
 
     bills.forEach((bill) => {
-      // Normalize the provider name (lowercase, remove common suffixes)
+      // Normalize the provider name more aggressively
       const normalizedName = bill.name
         ?.toLowerCase()
-        .replace(/\s+(bill|payment|charge|inc|llc|co|corp)\.?$/gi, '')
+        .replace(/\s*(payments?|bill|charge|inc|llc|co|corp|ach|electronic|debit)\.?\s*/gi, '')
         .trim() || ''
 
       const monthKey = format(parseISO(bill.due_date), 'yyyy-MM')
@@ -44,6 +45,11 @@ export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
     return { duplicates, duplicateBillIds }
   }, [bills])
 
+  // Bills missing service address
+  const billsMissingAddress = useMemo(() => {
+    return bills.filter(b => !b.service_address || b.service_address.trim() === '')
+  }, [bills])
+
   const filteredBills = useMemo(() => {
     let result = [...bills]
 
@@ -52,7 +58,8 @@ export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
       const query = searchQuery.toLowerCase()
       result = result.filter((b) =>
         b.name?.toLowerCase().includes(query) ||
-        b.notes?.toLowerCase().includes(query)
+        b.notes?.toLowerCase().includes(query) ||
+        b.service_address?.toLowerCase().includes(query)
       )
     }
 
@@ -68,6 +75,11 @@ export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
       result = result.filter((b) => duplicateInfo.duplicateBillIds.has(b.id))
     }
 
+    // Filter to show only missing address
+    if (showMissingAddress) {
+      result = result.filter((b) => !b.service_address || b.service_address.trim() === '')
+    }
+
     // Sort
     result.sort((a, b) => {
       let valA, valB
@@ -78,6 +90,10 @@ export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
         valA = a.name?.toLowerCase() || ''
         valB = b.name?.toLowerCase() || ''
         return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA)
+      } else if (sortBy === 'address') {
+        valA = a.service_address?.toLowerCase() || 'zzz'
+        valB = b.service_address?.toLowerCase() || 'zzz'
+        return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA)
       } else {
         valA = Number(a.amount)
         valB = Number(b.amount)
@@ -86,7 +102,7 @@ export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
     })
 
     return result
-  }, [bills, searchQuery, paidFilter, sortBy, sortOrder, showDuplicatesOnly, duplicateInfo])
+  }, [bills, searchQuery, paidFilter, sortBy, sortOrder, showDuplicatesOnly, showMissingAddress, duplicateInfo])
 
   const isOverdue = (bill) => {
     return !bill.paid && isBefore(parseISO(bill.due_date), new Date())
@@ -105,6 +121,24 @@ export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
     }
   }
 
+  const handleStartEditAddress = (bill) => {
+    setEditingAddressId(bill.id)
+    setEditingAddressValue(bill.service_address || '')
+  }
+
+  const handleSaveAddress = async (billId) => {
+    if (onUpdate) {
+      await onUpdate(billId, { service_address: editingAddressValue })
+    }
+    setEditingAddressId(null)
+    setEditingAddressValue('')
+  }
+
+  const handleCancelEditAddress = () => {
+    setEditingAddressId(null)
+    setEditingAddressValue('')
+  }
+
   // Group duplicates for the alert
   const duplicateGroups = useMemo(() => {
     const groups = []
@@ -112,19 +146,54 @@ export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
       const [name, monthKey] = key.split('__')
       const month = format(parseISO(monthKey + '-01'), 'MMMM yyyy')
       const totalAmount = billGroup.reduce((sum, b) => sum + Number(b.amount), 0)
+      const addresses = billGroup.map(b => b.service_address).filter(Boolean)
+      const uniqueAddresses = [...new Set(addresses)]
       groups.push({
-        name: billGroup[0].name, // Use original name from first bill
+        name: billGroup[0].name,
         month,
         count: billGroup.length,
         totalAmount,
         bills: billGroup,
+        addresses: uniqueAddresses,
+        missingAddresses: billGroup.filter(b => !b.service_address).length,
       })
     })
-    return groups.sort((a, b) => b.count - a.count)
+    return groups.sort((a, b) => {
+      // Sort by most recent month first
+      const [, monthA] = groups.find(g => g === a) ? a.month : ''
+      const [, monthB] = groups.find(g => g === b) ? b.month : ''
+      return monthB.localeCompare(monthA)
+    })
   }, [duplicateInfo])
 
   return (
     <div className="space-y-4">
+      {/* Missing Address Warning */}
+      {billsMissingAddress.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="flex-1">
+              <h3 className="font-medium text-blue-800">{billsMissingAddress.length} bills missing service address</h3>
+              <p className="text-sm text-blue-700 mt-1">
+                Add service addresses to identify which property each bill belongs to.
+              </p>
+              <button
+                onClick={() => {
+                  setShowMissingAddress(!showMissingAddress)
+                  setShowDuplicatesOnly(false)
+                }}
+                className="mt-2 text-sm font-medium text-blue-700 hover:text-blue-900 underline"
+              >
+                {showMissingAddress ? 'Show all bills' : 'Show bills missing address'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Duplicate Warning Alert */}
       {duplicateGroups.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
@@ -133,22 +202,34 @@ export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
             <div className="flex-1">
-              <h3 className="font-medium text-amber-800">Potential Duplicate Charges Detected</h3>
+              <h3 className="font-medium text-amber-800">Multiple Charges Detected - Same Provider, Same Month</h3>
               <p className="text-sm text-amber-700 mt-1">
-                The following utilities have multiple charges in the same month:
+                These may be for different service addresses. Click to add addresses if missing.
               </p>
               <ul className="mt-2 space-y-2">
                 {duplicateGroups.slice(0, 5).map((group, idx) => (
-                  <li key={idx} className="text-sm text-amber-800">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{group.name}</span>
-                      <span className="text-amber-600">-</span>
-                      <span>{group.count} charges in {group.month}</span>
-                      <span className="text-amber-600">-</span>
-                      <span className="font-medium">${group.totalAmount.toFixed(2)} total</span>
+                  <li key={idx} className="text-sm text-amber-800 bg-amber-100/50 rounded p-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-medium">{group.name}</span>
+                        <span className="text-amber-600 mx-2">•</span>
+                        <span>{group.month}</span>
+                      </div>
+                      <span className="font-medium">${group.totalAmount.toFixed(2)} ({group.count} charges)</span>
                     </div>
-                    <div className="ml-4 text-xs text-amber-600">
-                      From: {group.bills.map(b => b.source_document || 'Manual entry').filter((v, i, a) => a.indexOf(v) === i).join(', ')}
+                    <div className="mt-1 text-xs">
+                      {group.bills.map((bill, i) => (
+                        <div key={bill.id} className="flex items-center gap-2 mt-1">
+                          <span className="text-amber-700">${Number(bill.amount).toFixed(2)}</span>
+                          <span className="text-amber-500">→</span>
+                          {bill.service_address ? (
+                            <span className="text-green-700">{bill.service_address}</span>
+                          ) : (
+                            <span className="text-red-600 italic">No address set</span>
+                          )}
+                          <span className="text-amber-400 text-xs">({bill.source_document || 'manual'})</span>
+                        </div>
+                      ))}
                     </div>
                   </li>
                 ))}
@@ -159,7 +240,10 @@ export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
                 </p>
               )}
               <button
-                onClick={() => setShowDuplicatesOnly(!showDuplicatesOnly)}
+                onClick={() => {
+                  setShowDuplicatesOnly(!showDuplicatesOnly)
+                  setShowMissingAddress(false)
+                }}
                 className="mt-3 text-sm font-medium text-amber-700 hover:text-amber-900 underline"
               >
                 {showDuplicatesOnly ? 'Show all utilities' : 'Show only duplicates'}
@@ -175,7 +259,8 @@ export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">
               Utility Bills
-              {showDuplicatesOnly && <span className="ml-2 text-sm font-normal text-amber-600">(Showing duplicates only)</span>}
+              {showDuplicatesOnly && <span className="ml-2 text-sm font-normal text-amber-600">(Duplicates only)</span>}
+              {showMissingAddress && <span className="ml-2 text-sm font-normal text-blue-600">(Missing address)</span>}
             </h2>
             <div className="relative">
               <svg
@@ -212,7 +297,7 @@ export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
             </select>
 
             <div className="flex items-center gap-2 ml-auto">
-              <span className="text-sm text-gray-600">Sort by:</span>
+              <span className="text-sm text-gray-600">Sort:</span>
               <button
                 onClick={() => toggleSort('due_date')}
                 className={`px-3 py-2 text-sm rounded-md border transition-colors ${
@@ -234,14 +319,14 @@ export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
                 Provider {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
               </button>
               <button
-                onClick={() => toggleSort('amount')}
+                onClick={() => toggleSort('address')}
                 className={`px-3 py-2 text-sm rounded-md border transition-colors ${
-                  sortBy === 'amount'
+                  sortBy === 'address'
                     ? 'bg-blue-50 border-blue-300 text-blue-700'
                     : 'border-gray-300 hover:bg-gray-50'
                 }`}
               >
-                Amount {sortBy === 'amount' && (sortOrder === 'asc' ? '↑' : '↓')}
+                Address {sortBy === 'address' && (sortOrder === 'asc' ? '↑' : '↓')}
               </button>
             </div>
           </div>
@@ -255,10 +340,13 @@ export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
                   Provider
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Service Address
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Amount
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Due Date
+                  Date
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -271,7 +359,7 @@ export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
             <tbody className="divide-y divide-gray-200">
               {filteredBills.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                     No utility bills found
                   </td>
                 </tr>
@@ -284,7 +372,7 @@ export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
                     <td className="px-4 py-3">
                       <div className="flex items-start gap-2">
                         {isDuplicate(bill) && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800" title="Potential duplicate">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800" title="Multiple charges this month">
                             !
                           </span>
                         )}
@@ -297,11 +385,56 @@ export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
                               📄 {bill.source_document}
                             </p>
                           )}
-                          {bill.notes && (
-                            <p className="text-sm text-gray-500 truncate max-w-xs">{bill.notes}</p>
-                          )}
                         </div>
                       </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {editingAddressId === bill.id ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={editingAddressValue}
+                            onChange={(e) => setEditingAddressValue(e.target.value)}
+                            placeholder="Enter address..."
+                            className="px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveAddress(bill.id)
+                              if (e.key === 'Escape') handleCancelEditAddress()
+                            }}
+                          />
+                          <button
+                            onClick={() => handleSaveAddress(bill.id)}
+                            className="p-1 text-green-600 hover:bg-green-50 rounded"
+                            title="Save"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={handleCancelEditAddress}
+                            className="p-1 text-gray-600 hover:bg-gray-100 rounded"
+                            title="Cancel"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleStartEditAddress(bill)}
+                          className={`text-left text-sm ${
+                            bill.service_address
+                              ? 'text-gray-900 hover:text-blue-600'
+                              : 'text-gray-400 italic hover:text-blue-600'
+                          }`}
+                          title="Click to edit address"
+                        >
+                          {bill.service_address || '+ Add address'}
+                        </button>
+                      )}
                     </td>
                     <td className="px-4 py-3 font-medium">${Number(bill.amount).toFixed(2)}</td>
                     <td className={`px-4 py-3 ${isOverdue(bill) ? 'text-red-700 font-medium' : ''}`}>
