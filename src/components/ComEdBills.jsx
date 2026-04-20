@@ -1,12 +1,80 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { format, parseISO } from 'date-fns'
 import { reconcileBills } from '../utils/billMatching'
 import { getPdfUrl } from '../utils/storage'
+import { supabase } from '../lib/supabase'
 
-export function ComEdBills({ bills }) {
+export function ComEdBills({ bills: propBills }) {
   const [loadingPdf, setLoadingPdf] = useState(null)
   const [pdfError, setPdfError] = useState(null)
-  const [expandedId, setExpandedId] = useState(null)
+  const [isSharedView, setIsSharedView] = useState(false)
+  const [sharedBills, setSharedBills] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [ownerEmail, setOwnerEmail] = useState(null)
+
+  // Check for shared access and fetch shared bills if applicable
+  useEffect(() => {
+    async function checkSharedAccess() {
+      setLoading(true)
+      try {
+        // Get current user
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          setLoading(false)
+          return
+        }
+
+        // Check if user has any shares (meaning they're a viewer)
+        const { data: shares, error: sharesError } = await supabase
+          .from('bill_shares')
+          .select('owner_user_id, bill_filter')
+          .eq('shared_with_email', user.email.toLowerCase())
+          .eq('bill_filter', 'comed')
+
+        if (sharesError) {
+          console.error('Error checking shares:', sharesError)
+          setLoading(false)
+          return
+        }
+
+        if (shares && shares.length > 0) {
+          // User is a viewer - fetch owner's bills
+          const ownerUserId = shares[0].owner_user_id
+          setIsSharedView(true)
+
+          // Fetch owner's bills (RLS policy allows this)
+          const { data: ownerBills, error: billsError } = await supabase
+            .from('bills')
+            .select('*')
+            .eq('user_id', ownerUserId)
+
+          if (billsError) {
+            console.error('Error fetching shared bills:', billsError)
+          } else {
+            setSharedBills(ownerBills || [])
+          }
+
+          // Get owner's email for display
+          const { data: ownerData } = await supabase
+            .from('bills')
+            .select('user_id')
+            .eq('user_id', ownerUserId)
+            .limit(1)
+
+          // We'll just show "Owner" since we can't easily get their email
+          setOwnerEmail('Property Owner')
+        }
+      } catch (err) {
+        console.error('Error in checkSharedAccess:', err)
+      }
+      setLoading(false)
+    }
+
+    checkSharedAccess()
+  }, [])
+
+  // Use shared bills if viewing shared data, otherwise use prop bills
+  const bills = isSharedView ? (sharedBills || []) : propBills
 
   // Filter to only ComEd bills
   const { comedInvoices, comedTransactions } = useMemo(() => {
@@ -66,8 +134,35 @@ export function ComEdBills({ bills }) {
   const totalBilled = matched.reduce((sum, m) => sum + Number(m.bill.amount), 0)
   const totalPaid = matched.reduce((sum, m) => sum + Number(m.transaction.amount), 0)
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="flex items-center gap-3">
+          <svg className="animate-spin h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <span className="text-gray-600">Loading ComEd bills...</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
+      {/* Shared View Banner */}
+      {isSharedView && (
+        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 flex items-center gap-3">
+          <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+          </svg>
+          <div>
+            <p className="font-medium text-purple-800">Shared View</p>
+            <p className="text-sm text-purple-600">You are viewing ComEd bills shared with you (read-only)</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg p-6 text-white">
         <div className="flex items-center gap-4">
