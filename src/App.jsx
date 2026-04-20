@@ -17,6 +17,7 @@ import { UtilityBillImport } from './components/UtilityBillImport'
 import { UtilitiesList } from './components/UtilitiesList'
 import { Reconciliation } from './components/Reconciliation'
 import { ManageBills } from './components/ManageBills'
+import { ComEdBills } from './components/ComEdBills'
 
 function AppContent() {
   const { user, loading: authLoading, signOut } = useAuth()
@@ -240,6 +241,16 @@ function AppContent() {
               Dashboard
             </button>
             <button
+              onClick={() => setActiveTab('comed')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+                activeTab === 'comed'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              ComEd
+            </button>
+            <button
               onClick={() => setActiveTab('transactions')}
               className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
                 activeTab === 'transactions'
@@ -320,6 +331,10 @@ function AppContent() {
             <Dashboard bills={bills} />
             <DueSoon bills={bills} onMarkPaid={handleMarkPaid} />
           </div>
+        )}
+
+        {activeTab === 'comed' && (
+          <ComEdBills bills={bills} />
         )}
 
         {activeTab === 'transactions' && (
