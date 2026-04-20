@@ -234,6 +234,9 @@ export function Reconciliation({ bills }) {
                       </div>
                       <div>
                         <p className="font-medium text-gray-900">{bill.name}</p>
+                        {bill.billing_period && (
+                          <p className="text-sm text-blue-600 font-medium">{bill.billing_period}</p>
+                        )}
                         {bill.service_address && (
                           <p className="text-sm text-gray-500">{bill.service_address}</p>
                         )}
@@ -268,6 +271,12 @@ export function Reconciliation({ bills }) {
                           <dt className="text-amber-600">Provider</dt>
                           <dd className="font-medium text-amber-900">{bill.name}</dd>
                         </div>
+                        {bill.billing_period && (
+                          <div className="flex justify-between">
+                            <dt className="text-amber-600">Billing Period</dt>
+                            <dd className="font-medium text-amber-900">{bill.billing_period}</dd>
+                          </div>
+                        )}
                         <div className="flex justify-between">
                           <dt className="text-amber-600">Due Date</dt>
                           <dd className="font-medium text-amber-900">{formatDate(bill.due_date)}</dd>

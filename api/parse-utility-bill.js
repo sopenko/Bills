@@ -31,6 +31,7 @@ The JSON should have this structure:
   "amount": number (the TOTAL AMOUNT DUE - the full balance, not current charges),
   "due_date": "YYYY-MM-DD format (when payment is due)",
   "statement_date": "YYYY-MM-DD format (when bill was issued)",
+  "billing_period": "The service period this bill covers (e.g., 'Jan 15 - Feb 14, 2025' or 'January 2025')",
   "service_address": "The service address where utility is provided",
   "account_number": "The account number",
   "category": "utilities",
