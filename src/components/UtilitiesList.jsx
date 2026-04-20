@@ -137,14 +137,19 @@ export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
               <p className="text-sm text-amber-700 mt-1">
                 The following utilities have multiple charges in the same month:
               </p>
-              <ul className="mt-2 space-y-1">
+              <ul className="mt-2 space-y-2">
                 {duplicateGroups.slice(0, 5).map((group, idx) => (
-                  <li key={idx} className="text-sm text-amber-800 flex items-center gap-2">
-                    <span className="font-medium">{group.name}</span>
-                    <span className="text-amber-600">-</span>
-                    <span>{group.count} charges in {group.month}</span>
-                    <span className="text-amber-600">-</span>
-                    <span className="font-medium">${group.totalAmount.toFixed(2)} total</span>
+                  <li key={idx} className="text-sm text-amber-800">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{group.name}</span>
+                      <span className="text-amber-600">-</span>
+                      <span>{group.count} charges in {group.month}</span>
+                      <span className="text-amber-600">-</span>
+                      <span className="font-medium">${group.totalAmount.toFixed(2)} total</span>
+                    </div>
+                    <div className="ml-4 text-xs text-amber-600">
+                      From: {group.bills.map(b => b.source_document || 'Manual entry').filter((v, i, a) => a.indexOf(v) === i).join(', ')}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -287,6 +292,11 @@ export function UtilitiesList({ bills, onMarkPaid, onEdit, onDelete }) {
                           <p className={`font-medium ${isOverdue(bill) ? 'text-red-700' : 'text-gray-900'}`}>
                             {bill.name}
                           </p>
+                          {bill.source_document && (
+                            <p className="text-xs text-blue-600 truncate max-w-xs" title={bill.source_document}>
+                              📄 {bill.source_document}
+                            </p>
+                          )}
                           {bill.notes && (
                             <p className="text-sm text-gray-500 truncate max-w-xs">{bill.notes}</p>
                           )}
