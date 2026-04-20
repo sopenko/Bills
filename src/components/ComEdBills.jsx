@@ -11,6 +11,7 @@ export function ComEdBills({ bills: propBills }) {
   const [sharedBills, setSharedBills] = useState(null)
   const [loading, setLoading] = useState(true)
   const [ownerEmail, setOwnerEmail] = useState(null)
+  const [addressFilter, setAddressFilter] = useState(null)
 
   // Check for shared access and fetch shared bills if applicable
   useEffect(() => {
@@ -27,7 +28,7 @@ export function ComEdBills({ bills: propBills }) {
         // Check if user has any shares (meaning they're a viewer)
         const { data: shares, error: sharesError } = await supabase
           .from('bill_shares')
-          .select('owner_user_id, bill_filter')
+          .select('owner_user_id, bill_filter, service_address_filter')
           .eq('shared_with_email', user.email.toLowerCase())
           .eq('bill_filter', 'comed')
 
@@ -40,7 +41,9 @@ export function ComEdBills({ bills: propBills }) {
         if (shares && shares.length > 0) {
           // User is a viewer - fetch owner's bills
           const ownerUserId = shares[0].owner_user_id
+          const addrFilter = shares[0].service_address_filter
           setIsSharedView(true)
+          setAddressFilter(addrFilter)
 
           // Fetch owner's bills (RLS policy allows this)
           const { data: ownerBills, error: billsError } = await supabase
@@ -51,7 +54,14 @@ export function ComEdBills({ bills: propBills }) {
           if (billsError) {
             console.error('Error fetching shared bills:', billsError)
           } else {
-            setSharedBills(ownerBills || [])
+            // Filter by address if specified
+            let filteredBills = ownerBills || []
+            if (addrFilter) {
+              filteredBills = filteredBills.filter(b =>
+                b.service_address?.toLowerCase().includes(addrFilter.toLowerCase())
+              )
+            }
+            setSharedBills(filteredBills)
           }
 
           // Get owner's email for display
@@ -173,7 +183,11 @@ export function ComEdBills({ bills: propBills }) {
           </div>
           <div>
             <h1 className="text-2xl font-bold">ComEd Electric Bills</h1>
-            <p className="text-blue-100 mt-1">4437 S Wolcott Ave Unit 1, Chicago, IL 60609</p>
+            <p className="text-blue-100 mt-1">
+              {addressFilter === '4718'
+                ? '4718 S Damen Ave, Chicago, IL 60609'
+                : '4437 S Wolcott Ave Unit 1, Chicago, IL 60609'}
+            </p>
           </div>
         </div>
       </div>
