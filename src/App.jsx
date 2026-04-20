@@ -13,6 +13,7 @@ import { ImportHistory } from './components/ImportHistory'
 import { PdfImport } from './components/PdfImport'
 import { BankStatementImport } from './components/BankStatementImport'
 import { PlaidLinkButton, BankTransactionsModal } from './components/PlaidLink'
+import { UtilityBillImport } from './components/UtilityBillImport'
 
 function AppContent() {
   const { user, loading: authLoading, signOut } = useAuth()
@@ -22,6 +23,7 @@ function AppContent() {
   const [editingBill, setEditingBill] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isStatementImportOpen, setIsStatementImportOpen] = useState(false)
+  const [isUtilityImportOpen, setIsUtilityImportOpen] = useState(false)
   const [plaidConnectionId, setPlaidConnectionId] = useState(null)
   const [isPlaidModalOpen, setIsPlaidModalOpen] = useState(false)
 
@@ -109,6 +111,14 @@ function AppContent() {
     setIsPlaidModalOpen(true)
   }
 
+  const handleUtilityBillImport = async (billData) => {
+    try {
+      await addBill(billData)
+    } catch (err) {
+      toast.error(err.message || 'Failed to import utility bill')
+    }
+  }
+
   const handleSignOut = async () => {
     try {
       await signOut()
@@ -170,6 +180,15 @@ function AppContent() {
             <div className="flex items-center gap-2 sm:gap-3">
               <PlaidLinkButton onTransactionsImported={handlePlaidConnected} />
               <PdfImport onImportComplete={handlePdfImport} />
+              <button
+                onClick={() => setIsUtilityImportOpen(true)}
+                className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <span className="hidden sm:inline">Utility Bill</span>
+              </button>
               <button
                 onClick={() => setIsStatementImportOpen(true)}
                 className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
@@ -310,6 +329,13 @@ function AppContent() {
         onImportBills={handleStatementImport}
         connectionId={plaidConnectionId}
         existingBills={bills}
+      />
+
+      {/* Utility Bill Import Modal */}
+      <UtilityBillImport
+        isOpen={isUtilityImportOpen}
+        onClose={() => setIsUtilityImportOpen(false)}
+        onImportBill={handleUtilityBillImport}
       />
     </div>
   )
