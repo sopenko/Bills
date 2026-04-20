@@ -14,6 +14,7 @@ import { PdfImport } from './components/PdfImport'
 import { BankStatementImport } from './components/BankStatementImport'
 import { PlaidLinkButton, BankTransactionsModal } from './components/PlaidLink'
 import { UtilityBillImport } from './components/UtilityBillImport'
+import { UtilitiesList } from './components/UtilitiesList'
 
 function AppContent() {
   const { user, loading: authLoading, signOut } = useAuth()
@@ -310,12 +311,11 @@ function AppContent() {
         )}
 
         {activeTab === 'utilities' && (
-          <BillsList
+          <UtilitiesList
             bills={bills.filter(b => b.category === 'utilities' || b.source === 'invoice')}
             onMarkPaid={handleMarkPaid}
             onEdit={handleEditBill}
             onDelete={handleDeleteBill}
-            title="Utility Bills"
           />
         )}
 
