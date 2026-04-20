@@ -16,6 +16,7 @@ import { PlaidLinkButton, BankTransactionsModal } from './components/PlaidLink'
 import { UtilityBillImport } from './components/UtilityBillImport'
 import { UtilitiesList } from './components/UtilitiesList'
 import { Reconciliation } from './components/Reconciliation'
+import { ManageBills } from './components/ManageBills'
 
 function AppContent() {
   const { user, loading: authLoading, signOut } = useAuth()
@@ -298,6 +299,16 @@ function AppContent() {
             >
               Imports
             </button>
+            <button
+              onClick={() => setActiveTab('manage')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+                activeTab === 'manage'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Manage
+            </button>
           </div>
         </div>
       </nav>
@@ -340,6 +351,10 @@ function AppContent() {
         {activeTab === 'analytics' && <SpendingAnalysis bills={bills} />}
 
         {activeTab === 'imports' && <ImportHistory bills={bills} />}
+
+        {activeTab === 'manage' && (
+          <ManageBills bills={bills} onDelete={handleDeleteBill} />
+        )}
       </main>
 
       {/* Bill Form Modal */}
