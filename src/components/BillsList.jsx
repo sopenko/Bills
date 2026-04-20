@@ -2,15 +2,44 @@ import { useState, useMemo } from 'react'
 import { isBefore, parseISO, format } from 'date-fns'
 
 const CATEGORIES = ['all', 'housing', 'utilities', 'subscriptions', 'insurance', 'loan', 'other']
+const SOURCES = ['all', 'manual', 'bank_statement', 'credit_card', 'invoice', 'plaid']
+
+const SOURCE_LABELS = {
+  manual: 'Manual',
+  bank_statement: 'Bank',
+  credit_card: 'Credit Card',
+  invoice: 'Invoice',
+  plaid: 'Plaid',
+}
+
+const SOURCE_COLORS = {
+  manual: 'bg-gray-100 text-gray-700',
+  bank_statement: 'bg-blue-100 text-blue-700',
+  credit_card: 'bg-purple-100 text-purple-700',
+  invoice: 'bg-amber-100 text-amber-700',
+  plaid: 'bg-green-100 text-green-700',
+}
 
 export function BillsList({ bills, onMarkPaid, onEdit, onDelete }) {
+  const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [paidFilter, setPaidFilter] = useState('all')
+  const [sourceFilter, setSourceFilter] = useState('all')
   const [sortBy, setSortBy] = useState('due_date')
   const [sortOrder, setSortOrder] = useState('asc')
 
   const filteredBills = useMemo(() => {
     let result = [...bills]
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      result = result.filter((b) =>
+        b.name?.toLowerCase().includes(query) ||
+        b.notes?.toLowerCase().includes(query) ||
+        b.source_document?.toLowerCase().includes(query)
+      )
+    }
 
     // Filter by category
     if (categoryFilter !== 'all') {
@@ -22,6 +51,11 @@ export function BillsList({ bills, onMarkPaid, onEdit, onDelete }) {
       result = result.filter((b) => b.paid)
     } else if (paidFilter === 'unpaid') {
       result = result.filter((b) => !b.paid)
+    }
+
+    // Filter by source
+    if (sourceFilter !== 'all') {
+      result = result.filter((b) => b.source === sourceFilter)
     }
 
     // Sort
@@ -38,7 +72,7 @@ export function BillsList({ bills, onMarkPaid, onEdit, onDelete }) {
     })
 
     return result
-  }, [bills, categoryFilter, paidFilter, sortBy, sortOrder])
+  }, [bills, searchQuery, categoryFilter, paidFilter, sourceFilter, sortBy, sortOrder])
 
   const isOverdue = (bill) => {
     return !bill.paid && isBefore(parseISO(bill.due_date), new Date())
@@ -56,7 +90,41 @@ export function BillsList({ bills, onMarkPaid, onEdit, onDelete }) {
   return (
     <div className="bg-white rounded-lg border border-gray-200">
       <div className="p-4 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">All Bills</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">All Bills</h2>
+          <div className="relative">
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search bills..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-4 py-2 w-64 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
         <div className="flex flex-wrap gap-3">
           <select
             value={categoryFilter}
@@ -78,6 +146,19 @@ export function BillsList({ bills, onMarkPaid, onEdit, onDelete }) {
             <option value="all">All Status</option>
             <option value="paid">Paid</option>
             <option value="unpaid">Unpaid</option>
+          </select>
+
+          <select
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Sources</option>
+            <option value="manual">Manual</option>
+            <option value="bank_statement">Bank Statement</option>
+            <option value="credit_card">Credit Card</option>
+            <option value="invoice">Invoice</option>
+            <option value="plaid">Plaid</option>
           </select>
 
           <div className="flex items-center gap-2 ml-auto">
@@ -126,6 +207,9 @@ export function BillsList({ bills, onMarkPaid, onEdit, onDelete }) {
                 Type
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Source
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -136,7 +220,7 @@ export function BillsList({ bills, onMarkPaid, onEdit, onDelete }) {
           <tbody className="divide-y divide-gray-200">
             {filteredBills.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                   No bills found
                 </td>
               </tr>
@@ -151,6 +235,11 @@ export function BillsList({ bills, onMarkPaid, onEdit, onDelete }) {
                       <p className={`font-medium ${isOverdue(bill) ? 'text-red-700' : 'text-gray-900'}`}>
                         {bill.name}
                       </p>
+                      {bill.source_document && (
+                        <p className="text-xs text-blue-600 truncate max-w-xs" title={bill.source_document}>
+                          📄 {bill.source_document}
+                        </p>
+                      )}
                       {bill.notes && (
                         <p className="text-sm text-gray-500 truncate max-w-xs">{bill.notes}</p>
                       )}
@@ -166,6 +255,11 @@ export function BillsList({ bills, onMarkPaid, onEdit, onDelete }) {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 capitalize">{bill.type}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${SOURCE_COLORS[bill.source] || SOURCE_COLORS.manual}`}>
+                      {SOURCE_LABELS[bill.source] || 'Manual'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3">
                     <button
                       onClick={() => !bill.paid && onMarkPaid(bill.id)}

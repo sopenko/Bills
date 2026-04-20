@@ -6,14 +6,36 @@ export function useBills() {
   const [bills, setBills] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [userId, setUserId] = useState(null)
+
+  // Get current user ID
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUserId(session?.user?.id ?? null)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
 
   const fetchBills = useCallback(async () => {
+    if (!userId) {
+      setBills([])
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       const { data, error } = await supabase
         .from('bills')
         .select('*')
+        .eq('user_id', userId)
         .order('due_date', { ascending: true })
+        .limit(10000)
 
       if (error) throw error
       setBills(data || [])
@@ -22,16 +44,18 @@ export function useBills() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [userId])
 
   useEffect(() => {
     fetchBills()
   }, [fetchBills])
 
   const addBill = async (bill) => {
+    if (!userId) throw new Error('Not authenticated')
+
     const { data, error } = await supabase
       .from('bills')
-      .insert([bill])
+      .insert([{ ...bill, user_id: userId }])
       .select()
       .single()
 
@@ -78,6 +102,8 @@ export function useBills() {
         type: 'recurring',
         paid: false,
         notes: bill.notes,
+        source: bill.source,
+        source_document: bill.source_document,
       })
     }
   }

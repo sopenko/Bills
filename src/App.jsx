@@ -1,21 +1,29 @@
 import { useState } from 'react'
 import { Toaster, toast } from 'react-hot-toast'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { Login } from './components/Login'
 import { useBills } from './hooks/useBills'
 import { Dashboard } from './components/Dashboard'
 import { DueSoon } from './components/DueSoon'
 import { BillsList } from './components/BillsList'
 import { BillForm } from './components/BillForm'
 import { MonthlyOverview } from './components/MonthlyOverview'
+import { SpendingAnalysis } from './components/SpendingAnalysis'
+import { ImportHistory } from './components/ImportHistory'
 import { PdfImport } from './components/PdfImport'
 import { BankStatementImport } from './components/BankStatementImport'
+import { PlaidLinkButton, BankTransactionsModal } from './components/PlaidLink'
 
-function App() {
+function AppContent() {
+  const { user, loading: authLoading, signOut } = useAuth()
   const { bills, loading, error, addBill, updateBill, deleteBill, markPaid } = useBills()
   const [activeTab, setActiveTab] = useState('dashboard')
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingBill, setEditingBill] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isStatementImportOpen, setIsStatementImportOpen] = useState(false)
+  const [plaidConnectionId, setPlaidConnectionId] = useState(null)
+  const [isPlaidModalOpen, setIsPlaidModalOpen] = useState(false)
 
   const handleAddBill = () => {
     setEditingBill(null)
@@ -96,7 +104,21 @@ function App() {
     }
   }
 
-  if (loading) {
+  const handlePlaidConnected = (connectionId) => {
+    setPlaidConnectionId(connectionId)
+    setIsPlaidModalOpen(true)
+  }
+
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+      toast.success('Signed out successfully')
+    } catch (err) {
+      toast.error(err.message || 'Failed to sign out')
+    }
+  }
+
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex items-center gap-3">
@@ -115,10 +137,14 @@ function App() {
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             />
           </svg>
-          <span className="text-gray-600">Loading bills...</span>
+          <span className="text-gray-600">{authLoading ? 'Loading...' : 'Loading bills...'}</span>
         </div>
       </div>
     )
+  }
+
+  if (!user) {
+    return <Login />
   }
 
   if (error) {
@@ -142,6 +168,7 @@ function App() {
           <div className="flex items-center justify-between h-16">
             <h1 className="text-xl font-bold text-gray-900">Bill Tracker</h1>
             <div className="flex items-center gap-2 sm:gap-3">
+              <PlaidLinkButton onTransactionsImported={handlePlaidConnected} />
               <PdfImport onImportComplete={handlePdfImport} />
               <button
                 onClick={() => setIsStatementImportOpen(true)}
@@ -150,7 +177,7 @@ function App() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <span className="hidden sm:inline">Bank Statement</span>
+                <span className="hidden sm:inline">Statement PDF</span>
               </button>
               <button
                 onClick={handleAddBill}
@@ -160,6 +187,16 @@ function App() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
                 <span className="hidden sm:inline">Add Bill</span>
+              </button>
+              <button
+                onClick={handleSignOut}
+                className="inline-flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                title={user.email}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span className="hidden sm:inline">Sign Out</span>
               </button>
             </div>
           </div>
@@ -200,6 +237,26 @@ function App() {
             >
               Monthly Overview
             </button>
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'analytics'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Analytics
+            </button>
+            <button
+              onClick={() => setActiveTab('imports')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'imports'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Imports
+            </button>
           </div>
         </div>
       </nav>
@@ -223,6 +280,10 @@ function App() {
         )}
 
         {activeTab === 'monthly' && <MonthlyOverview bills={bills} />}
+
+        {activeTab === 'analytics' && <SpendingAnalysis bills={bills} />}
+
+        {activeTab === 'imports' && <ImportHistory bills={bills} />}
       </main>
 
       {/* Bill Form Modal */}
@@ -239,8 +300,26 @@ function App() {
         isOpen={isStatementImportOpen}
         onClose={() => setIsStatementImportOpen(false)}
         onImportBills={handleStatementImport}
+        existingBills={bills}
+      />
+
+      {/* Plaid Bank Transactions Modal */}
+      <BankTransactionsModal
+        isOpen={isPlaidModalOpen}
+        onClose={() => setIsPlaidModalOpen(false)}
+        onImportBills={handleStatementImport}
+        connectionId={plaidConnectionId}
+        existingBills={bills}
       />
     </div>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   )
 }
 

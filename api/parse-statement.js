@@ -10,13 +10,24 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'PDF data is required' })
   }
 
+  // Check PDF size (base64 is ~33% larger than binary)
+  const pdfSizeBytes = Math.ceil((pdf.length * 3) / 4)
+  const pdfSizeMB = pdfSizeBytes / (1024 * 1024)
+  console.log(`PDF size: ${pdfSizeMB.toFixed(2)} MB`)
+
+  if (pdfSizeMB > 20) {
+    return res.status(400).json({ error: `PDF too large (${pdfSizeMB.toFixed(1)} MB). Max size is 20 MB.` })
+  }
+
   const apiKey = process.env.ANTHROPIC_API_KEY
 
   if (!apiKey) {
+    console.error('ANTHROPIC_API_KEY not found in environment')
     return res.status(500).json({ error: 'Anthropic API key not configured' })
   }
 
   try {
+    console.log('Calling Anthropic API...')
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -26,7 +37,8 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 4096,
+        max_tokens: 16384,
+        system: 'You are a JSON extraction API. You ONLY output valid JSON, never any other text.',
         messages: [
           {
             role: 'user',
@@ -41,65 +53,96 @@ export default async function handler(req, res) {
               },
               {
                 type: 'text',
-                text: `Extract all transactions/charges from this bank statement and return ONLY a valid JSON object with no extra text or markdown.
+                text: `Extract transactions from this statement as JSON.
 
-Return format:
-{
-  "transactions": [
-    {
-      "name": "merchant or payee name",
-      "amount": number (positive for charges/debits, use absolute value),
-      "date": "YYYY-MM-DD",
-      "category": "housing" | "utilities" | "subscriptions" | "insurance" | "loan" | "other",
-      "description": "brief description or null"
-    }
-  ],
-  "statement_period": "Month Year or date range",
-  "account_hint": "last 4 digits or account type if visible"
-}
+Format: {"transactions":[{"name":"merchant","amount":123.45,"date":"YYYY-MM-DD","category":"other","description":null}],"statement_period":"Month Year","account_hint":"1234"}
 
-Category guidelines:
-- housing: rent, mortgage, HOA fees
-- utilities: electric, gas, water, internet, phone
-- subscriptions: streaming services, software, memberships
-- insurance: health, auto, home, life insurance
-- loan: credit card payments, car loans, student loans, personal loans
-- other: groceries, shopping, dining, entertainment, etc.
+Categories: housing, utilities, subscriptions, insurance, loan, other
+- Only debits/charges (skip deposits)
+- amount = positive number
+- date = YYYY-MM-DD
 
-Only include outgoing payments/charges (debits). Skip deposits/credits.
-If the document is not a bank statement, return { "error": "Not a bank statement", "transactions": [] }`,
+If not a statement: {"error":"Not a bank statement","transactions":[]}`,
               },
             ],
           },
+          {
+            role: 'assistant',
+            content: '{'
+          }
         ],
       }),
     })
 
     if (!response.ok) {
-      const errorData = await response.json()
-      console.error('Anthropic API error:', errorData)
-      return res.status(response.status).json({ error: 'Failed to process statement' })
+      const errorText = await response.text()
+      console.error('Anthropic API error:', response.status, errorText)
+
+      let errorMessage = 'Failed to process statement'
+      try {
+        const errorData = JSON.parse(errorText)
+        if (errorData.error?.message) {
+          errorMessage = errorData.error.message
+        }
+      } catch (e) {
+        // Use default error message
+      }
+
+      return res.status(response.status).json({
+        error: errorMessage,
+        status: response.status
+      })
     }
 
+    console.log('Anthropic API responded successfully')
+
     const data = await response.json()
-    const content = data.content?.[0]?.text
+    let content = data.content?.[0]?.text
 
     if (!content) {
       return res.status(500).json({ error: 'No response from AI' })
     }
 
+    // Prepend the '{' we used as prefill
+    content = '{' + content
+
     // Try to parse the JSON response
     try {
       // Remove any markdown code blocks if present
-      const cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-      const parsed = JSON.parse(cleanContent)
+      let cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+
+      // Try to find JSON object in the response if direct parse fails
+      let parsed
+      try {
+        parsed = JSON.parse(cleanContent)
+      } catch (e) {
+        // Try to extract JSON from the response
+        const jsonMatch = cleanContent.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          parsed = JSON.parse(jsonMatch[0])
+        } else {
+          throw new Error('No JSON found in response')
+        }
+      }
+
       return res.status(200).json(parsed)
     } catch (parseError) {
       console.error('Failed to parse AI response:', content)
-      return res.status(500).json({ error: 'Failed to parse statement data', raw: content })
+      console.error('Parse error:', parseError.message)
+
+      // Return a more helpful error with a snippet of the response
+      const snippet = content.substring(0, 500)
+      return res.status(500).json({
+        error: 'Failed to parse statement data',
+        hint: 'The AI response was not valid JSON',
+        snippet: snippet
+      })
     }
   } catch (error) {
-    console.error('Error processing statement:', error)
-    return res.status(500).json({ error: 'Internal server error' })
+    console.error('Error processing statement:', error.message, error.stack)
+    return res.status(500).json({
+      error: 'Internal server error',
+      message: error.message
+    })
   }
 }

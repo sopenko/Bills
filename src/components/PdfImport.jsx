@@ -50,15 +50,15 @@ export function PdfImport({ onImportComplete }) {
 
       if (hasValidData) {
         toast.success('Invoice data extracted successfully')
-        onImportComplete(data)
+        onImportComplete({ ...data, source: 'invoice', source_document: file.name })
       } else {
         toast.error('Could not extract all fields — please fill in manually')
-        onImportComplete({})
+        onImportComplete({ source: 'invoice', source_document: file.name })
       }
     } catch (error) {
       console.error('Error importing invoice:', error)
       toast.error('Could not extract all fields — please fill in manually')
-      onImportComplete({})
+      onImportComplete({ source_document: file.name })
     } finally {
       setIsLoading(false)
       // Reset file input

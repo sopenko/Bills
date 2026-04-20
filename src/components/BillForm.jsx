@@ -3,6 +3,7 @@ import { format } from 'date-fns'
 
 const CATEGORIES = ['housing', 'utilities', 'subscriptions', 'insurance', 'loan', 'other']
 const TYPES = ['one-time', 'recurring']
+const SOURCES = ['manual', 'bank_statement', 'credit_card', 'invoice', 'plaid']
 
 export function BillForm({ isOpen, onClose, onSubmit, initialData, isLoading }) {
   const [formData, setFormData] = useState({
@@ -11,6 +12,8 @@ export function BillForm({ isOpen, onClose, onSubmit, initialData, isLoading }) 
     due_date: format(new Date(), 'yyyy-MM-dd'),
     category: 'other',
     type: 'one-time',
+    source: 'manual',
+    source_document: '',
     notes: '',
   })
 
@@ -22,6 +25,8 @@ export function BillForm({ isOpen, onClose, onSubmit, initialData, isLoading }) 
         due_date: initialData.due_date || format(new Date(), 'yyyy-MM-dd'),
         category: initialData.category || 'other',
         type: initialData.type || 'one-time',
+        source: initialData.source || 'manual',
+        source_document: initialData.source_document || '',
         notes: initialData.notes || '',
       })
     } else {
@@ -31,6 +36,8 @@ export function BillForm({ isOpen, onClose, onSubmit, initialData, isLoading }) 
         due_date: format(new Date(), 'yyyy-MM-dd'),
         category: 'other',
         type: 'one-time',
+        source: 'manual',
+        source_document: '',
         notes: '',
       })
     }
@@ -160,6 +167,25 @@ export function BillForm({ isOpen, onClose, onSubmit, initialData, isLoading }) 
                     {t === 'one-time' ? 'One-time' : 'Recurring'}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="source" className="block text-sm font-medium text-gray-700 mb-1">
+                Source
+              </label>
+              <select
+                id="source"
+                name="source"
+                value={formData.source}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="manual">Manual Entry</option>
+                <option value="bank_statement">Bank Statement</option>
+                <option value="credit_card">Credit Card</option>
+                <option value="invoice">Invoice</option>
+                <option value="plaid">Plaid (Bank API)</option>
               </select>
             </div>
 
