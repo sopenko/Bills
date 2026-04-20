@@ -1,15 +1,29 @@
 import { useMemo } from 'react'
 import { isAfter, isBefore, addDays, startOfMonth, endOfMonth, parseISO } from 'date-fns'
+import { reconcileBills } from '../utils/billMatching'
 
 export function Dashboard({ bills }) {
+  // Find utility bills that have matching bank transactions (considered paid)
+  const matchedBillIds = useMemo(() => {
+    const utilityBills = bills.filter(b => b.source === 'invoice')
+    const bankTransactions = bills.filter(b =>
+      b.source === 'bank_statement' || b.source === 'plaid' || b.source === 'credit_card'
+    )
+    const { matched } = reconcileBills(utilityBills, bankTransactions)
+    return new Set(matched.map(m => m.bill.id))
+  }, [bills])
+
   const stats = useMemo(() => {
     const today = new Date()
     const sevenDaysFromNow = addDays(today, 7)
     const monthStart = startOfMonth(today)
     const monthEnd = endOfMonth(today)
 
-    const unpaidBills = bills.filter((b) => !b.paid)
-    const paidBills = bills.filter((b) => b.paid)
+    // Consider a bill paid if it's marked paid OR has a matching bank transaction
+    const isPaid = (b) => b.paid || matchedBillIds.has(b.id)
+
+    const unpaidBills = bills.filter((b) => !isPaid(b))
+    const paidBills = bills.filter((b) => isPaid(b))
 
     // Total unpaid amount
     const totalUnpaid = unpaidBills.reduce((sum, b) => sum + Number(b.amount), 0)
@@ -37,7 +51,7 @@ export function Dashboard({ bills }) {
       dueSoonAmount,
       paidThisMonthAmount,
     }
-  }, [bills])
+  }, [bills, matchedBillIds])
 
   const cards = [
     {

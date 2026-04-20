@@ -1,19 +1,33 @@
 import { useMemo } from 'react'
 import { isAfter, isBefore, addDays, parseISO, format } from 'date-fns'
+import { reconcileBills } from '../utils/billMatching'
 
 export function DueSoon({ bills, onMarkPaid }) {
+  // Find utility bills that have matching bank transactions (considered paid)
+  const matchedBillIds = useMemo(() => {
+    const utilityBills = bills.filter(b => b.source === 'invoice')
+    const bankTransactions = bills.filter(b =>
+      b.source === 'bank_statement' || b.source === 'plaid' || b.source === 'credit_card'
+    )
+    const { matched } = reconcileBills(utilityBills, bankTransactions)
+    return new Set(matched.map(m => m.bill.id))
+  }, [bills])
+
   const dueSoonBills = useMemo(() => {
     const today = new Date()
     const sevenDaysFromNow = addDays(today, 7)
 
+    // Consider a bill paid if it's marked paid OR has a matching bank transaction
+    const isPaid = (b) => b.paid || matchedBillIds.has(b.id)
+
     return bills
-      .filter((b) => !b.paid)
+      .filter((b) => !isPaid(b))
       .filter((b) => {
         const dueDate = parseISO(b.due_date)
         return isBefore(dueDate, sevenDaysFromNow)
       })
       .sort((a, b) => parseISO(a.due_date) - parseISO(b.due_date))
-  }, [bills])
+  }, [bills, matchedBillIds])
 
   const getUrgencyColor = (dueDate) => {
     const today = new Date()
