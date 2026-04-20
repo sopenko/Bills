@@ -54,12 +54,17 @@ export function ComEdBills({ bills: propBills }) {
           if (billsError) {
             console.error('Error fetching shared bills:', billsError)
           } else {
-            // Filter by address if specified
+            // Filter invoices by address, but keep ALL bank transactions for matching
             let filteredBills = ownerBills || []
             if (addrFilter) {
-              filteredBills = filteredBills.filter(b =>
-                b.service_address?.toLowerCase().includes(addrFilter.toLowerCase())
-              )
+              filteredBills = filteredBills.filter(b => {
+                // Keep all bank transactions (they don't have service_address)
+                if (b.source === 'bank_statement' || b.source === 'plaid' || b.source === 'credit_card') {
+                  return true
+                }
+                // Filter invoices by address
+                return b.service_address?.toLowerCase().includes(addrFilter.toLowerCase())
+              })
             }
             setSharedBills(filteredBills)
           }
