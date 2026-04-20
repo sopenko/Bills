@@ -114,6 +114,13 @@ export function UtilityBillImport({ isOpen, onClose, onImportBill }) {
   const handleConfirmImport = () => {
     if (!extractedBill) return
 
+    // Build notes with service address and account info
+    const noteParts = []
+    if (extractedBill.service_address) noteParts.push(`Service: ${extractedBill.service_address}`)
+    if (extractedBill.account_number) noteParts.push(`Account: ${extractedBill.account_number}`)
+    if (extractedBill.statement_date) noteParts.push(`Statement: ${extractedBill.statement_date}`)
+    if (extractedBill.notes) noteParts.push(extractedBill.notes)
+
     const billData = {
       name: extractedBill.name || 'Utility Bill',
       amount: extractedBill.amount || 0,
@@ -121,7 +128,7 @@ export function UtilityBillImport({ isOpen, onClose, onImportBill }) {
       category: 'utilities',
       type: 'recurring',
       paid: false,
-      notes: extractedBill.notes || '',
+      notes: noteParts.join(' | ') || '',
       source: 'invoice',
       source_document: extractedBill.source_document,
     }
@@ -300,7 +307,7 @@ Account: ****1234"
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount Due</label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                       <input
@@ -323,13 +330,45 @@ Account: ****1234"
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Statement Date</label>
+                    <input
+                      type="date"
+                      value={extractedBill.statement_date || ''}
+                      onChange={(e) => handleFieldChange('statement_date', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Account Number</label>
+                    <input
+                      type="text"
+                      value={extractedBill.account_number || ''}
+                      onChange={(e) => handleFieldChange('account_number', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Service Address</label>
+                  <input
+                    type="text"
+                    value={extractedBill.service_address || ''}
+                    onChange={(e) => handleFieldChange('service_address', e.target.value)}
+                    placeholder="Address where service is provided"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Additional Notes</label>
                   <input
                     type="text"
                     value={extractedBill.notes || ''}
                     onChange={(e) => handleFieldChange('notes', e.target.value)}
-                    placeholder="Account number, etc."
+                    placeholder="Usage, previous balance, etc."
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
